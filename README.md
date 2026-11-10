@@ -12,4 +12,5 @@ l'empreinte et la signature avant toute installation.
 Installation : voir [`install/README.md`](install/README.md) ou la commande affichée dans
 l'interface d'Alisa (Proxies › Ajouter un proxy, Hôtes › Ajouter un agent).
 
-© Net System srl — https://net-system.be
+Logiciel propriétaire : © Net System srl, tous droits réservés — https://net-system.be.
+L'usage des binaires est réservé aux titulaires d'une licence Alisa.
