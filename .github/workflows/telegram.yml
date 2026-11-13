@@ -1,0 +1,92 @@
+# =============================================================================
+# Notifications Telegram du dépôt public des binaires Alisa
+# -----------------------------------------------------------------------------
+# - Nouvelle version publiée (release) : version, fichiers, lien de téléchargement.
+# - Push sur main (scripts d'installation mis à jour) : commits poussés.
+#
+# Les releases sont créées par le workflow release.yml du dépôt cganiddle/alisa avec un
+# jeton personnel (ALISA_RELEASES_TOKEN) : elles déclenchent bien ce workflow.
+#
+# Secrets à créer dans ce dépôt (Settings → Secrets and variables → Actions) :
+#   TELEGRAM_BOT_TOKEN  jeton du bot (via @BotFather)
+#   TELEGRAM_CHAT_ID    identifiant du chat/groupe qui reçoit les messages
+# Sans ces secrets, le workflow se termine sans erreur et n'envoie rien.
+# =============================================================================
+name: Notification Telegram
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Envoyer la notification
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Contenu de l'événement passé par variable d'environnement (jamais interpolé
+          # dans le script) pour éviter toute injection.
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_JSON: ${{ toJSON(github.event) }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${TELEGRAM_CHAT_ID}" ]; then
+            echo "Secrets Telegram absents : notification ignorée."
+            exit 0
+          fi
+
+          # Échappement HTML pour Telegram (parse_mode=HTML).
+          esc() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+
+          case "$EVENT_NAME" in
+            release)
+              tag=$(jq -r '.release.tag_name' <<<"$EVENT_JSON" | esc)
+              name=$(jq -r '.release.name // .release.tag_name' <<<"$EVENT_JSON" | esc)
+              url=$(jq -r '.release.html_url' <<<"$EVENT_JSON")
+              pre=$(jq -r '.release.prerelease' <<<"$EVENT_JSON")
+              author=$(jq -r '.release.author.login // "?"' <<<"$EVENT_JSON" | esc)
+              # Fichiers joints : agents et proxies par plateforme, signatures.
+              assets=$(jq -r '
+                def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+                .release.assets | sort_by(.name) | .[] |
+                "• <code>\(.name | esc)</code> (\(if .size < 1048576 then "\(.size / 1024 | ceil) Ko" else "\((.size / 1048576 * 10 | floor) / 10) Mo" end))"' <<<"$EVENT_JSON")
+              count=$(jq -r '.release.assets | length' <<<"$EVENT_JSON")
+              kind="🚀 Nouvelle version"
+              [ "$pre" = "true" ] && kind="🧪 Pré-version"
+              text=$(printf '%s <b>%s</b>\n<code>%s</code> · publiée par %s · %s fichier(s)\n\n%s\n\n<a href="%s">Télécharger</a> · <a href="https://github.com/%s/tree/main/install">Scripts d&#39;installation</a>\nLes agents et proxies en mode « Automatique » se mettent à jour d&#39;eux-mêmes.' \
+                     "$kind" "$name" "$tag" "$author" "$count" "$assets" "$url" "$REPOSITORY")
+              ;;
+            push)
+              pusher=$(jq -r '.pusher.name // "?"' <<<"$EVENT_JSON" | esc)
+              compare=$(jq -r '.compare // ""' <<<"$EVENT_JSON")
+              commits=$(jq -r '
+                def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+                .commits[-10:][] |
+                "• <a href=\"\(.url)\">\(.id[0:7])</a> \(.message | split("\n")[0] | .[0:200] | esc)"' <<<"$EVENT_JSON")
+              [ -z "$commits" ] && { echo "Aucun commit : rien à notifier."; exit 0; }
+              text=$(printf '📦 <b>%s</b> · main\nMis à jour par <b>%s</b>\n\n%s\n\n<a href="%s">Voir les changements</a>' \
+                     "$(esc <<<"$REPOSITORY")" "$pusher" "$commits" "$compare")
+              ;;
+            *)
+              text=$(printf '✅ <b>%s</b> : test de la notification Telegram.' "$(esc <<<"$REPOSITORY")")
+              ;;
+          esac
+
+          # Limite Telegram : 4096 caractères (la liste des fichiers reste bien en dessous).
+          curl --fail-with-body -sS -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${text}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "disable_web_page_preview=true" > /dev/null
+          echo "Notification envoyée."
