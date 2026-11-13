@@ -57,6 +57,16 @@ Windows (PowerShell **administrateur**) :
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.ps1))) -Component agent
 ```
 
+Depuis `cmd.exe` (console par défaut de Server Core et Hyper-V Server ; l'erreur « & était
+inattendu » signale qu'on est dans cmd) :
+
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.ps1))) -Component agent"
+```
+
+Sur un hôte **Hyper-V**, l'agent standard suffit : ajoutez ensuite un check « Hyper-V » pour
+superviser les machines virtuelles ([`docs/hyperv.md`](../../docs/hyperv.md)).
+
 L'agent doit pouvoir joindre le serveur central (port 5443) pour s'enrôler, puis son proxy
 (port 5100). Il n'a pas besoin d'accès Internet ensuite : ses mises à jour passent par le proxy.
 
