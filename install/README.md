@@ -70,6 +70,12 @@ superviser les machines virtuelles ([`docs/hyperv.md`](../../docs/hyperv.md)).
 L'agent doit pouvoir joindre le serveur central (port 5443) pour s'enrôler, puis son proxy
 (port 5100). Il n'a pas besoin d'accès Internet ensuite : ses mises à jour passent par le proxy.
 
+**État SMART des disques** (facultatif, agent ≥ 0.3.19) : installez smartmontools ≥ 7
+(`apt install smartmontools`, `dnf install smartmontools`, `brew install smartmontools`, ou
+l'installateur Windows de smartmontools.org). L'agent le détecte seul et relève la santé des
+disques toutes les 30 minutes. Le RAID logiciel Linux (`/proc/mdstat`) est relevé sans rien
+installer.
+
 ## Revoir le code de vérification
 
 ```bash
