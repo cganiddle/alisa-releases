@@ -3,7 +3,7 @@
 Principe (voir [ADR 0002](../../docs/adr/0002-enrolement-et-mise-a-jour.md)) :
 
 1. On installe le proxy ou l'agent **sans aucun secret** : seule l'adresse du serveur central
-   est nécessaire (par défaut `alisa.netmonitoring.be:5443`).
+   est nécessaire (par défaut `alisa.re:5443`).
 2. Au démarrage, le nœud génère son identité et **s'annonce au serveur central**. Le script
    affiche son **code de vérification** (`XXXX-XXXX`).
 3. Dans l'interface Alisa, l'administrateur **approuve le proxy** (nom de fonctionnement,
@@ -90,7 +90,7 @@ sudo alisa-agent enrollment          # ou : sudo alisa-proxy enrollment
 
 | `install.sh` | `install.ps1` | Effet |
 |---|---|---|
-| `--server hôte:port` | `-Server` | Serveur central (défaut `alisa.netmonitoring.be:5443`) |
+| `--server hôte:port` | `-Server` | Serveur central (défaut `alisa.re:5443`) |
 | `--version vX.Y.Z` | `-Version` | Version précise (défaut : dernière publiée) |
 | `--ca-file chemin` | `-CaFile` | CA privée du serveur central |
 | `--listen :5100` | `-Listen` | Proxy : adresse d'écoute pour les agents |

@@ -17,7 +17,7 @@
 # l'interface Alisa, en vérifiant ce code.
 #
 # Options communes :
-#   --server hôte:port   serveur central (défaut : alisa.netmonitoring.be:5443)
+#   --server hôte:port   serveur central (défaut : alisa.re:5443)
 #   --version vX.Y.Z     version à installer (défaut : la dernière publiée)
 #   --ca-file chemin     CA privée du serveur central
 #   --force-config       réécrit la configuration même si elle existe déjà
@@ -35,7 +35,7 @@
 set -Eeuo pipefail
 
 readonly REPO="cganiddle/alisa-releases"
-readonly DEFAULT_SERVER="alisa.netmonitoring.be:5443"
+readonly DEFAULT_SERVER="alisa.re:5443"
 
 info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*" >&2; }

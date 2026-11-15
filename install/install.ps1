@@ -14,7 +14,7 @@
  de vérification. Approuvez-le (proxy) ou associez-le à un proxy (agent) dans
  l'interface Alisa, en vérifiant ce code.
 
- Options : -Server hôte:port (défaut alisa.netmonitoring.be:5443), -Version vX.Y.Z
+ Options : -Server hôte:port (défaut alisa.re:5443), -Version vX.Y.Z
            (défaut : dernière version), -CaFile <CA du serveur central>,
            -Listen ":5100" (proxy), -ProxyTls / -ProxyCaFile <chemin> (agent : le
            proxy présente un certificat), -ForceConfig (réécrit la configuration).
@@ -27,7 +27,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][ValidateSet('agent', 'proxy')][string]$Component,
-    [string]$Server = 'alisa.netmonitoring.be:5443',
+    [string]$Server = 'alisa.re:5443',
     [string]$Listen = ':5100',
     [string]$Version = 'latest',
     [string]$CaFile,
