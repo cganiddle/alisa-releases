@@ -5,11 +5,11 @@
 # Usage (en root) :
 #
 #   Proxy (Linux) :
-#     curl -fsSL https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.sh \
+#     curl -fsSL https://raw.githubusercontent.com/net-system-srl/alisa-releases/main/install/install.sh \
 #       | sudo bash -s -- proxy
 #
 #   Agent (Linux, macOS) :
-#     curl -fsSL https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.sh \
+#     curl -fsSL https://raw.githubusercontent.com/net-system-srl/alisa-releases/main/install/install.sh \
 #       | sudo bash -s -- agent
 #
 # Aucun secret à fournir : le nœud s'annonce au serveur central et affiche un code
@@ -29,13 +29,18 @@
 #   --proxy-ca-file      CA ayant signé le certificat du proxy (implique --proxy-tls)
 #
 # Relancer le script met à jour le binaire et redémarre le service, en conservant
-# la configuration et l'identité du nœud. Le binaire téléchargé est vérifié avec
-# SHA256SUMS avant installation ; ensuite, les mises à jour sont automatiques.
+# la configuration et l'identité du nœud (seul server_address est mis à jour s'il
+# diffère de --server ou vaut encore l'ancienne adresse alisa.netmonitoring.be).
+# Le binaire téléchargé est vérifié avec SHA256SUMS avant installation ; ensuite,
+# les mises à jour sont automatiques.
 # =============================================================================
 set -Eeuo pipefail
 
-readonly REPO="cganiddle/alisa-releases"
+readonly REPO="net-system-srl/alisa-releases"
 readonly DEFAULT_SERVER="alisa.re:5443"
+# Ancienne adresse (avant le passage à alisa.re) : une configuration existante qui la
+# contient encore est mise à jour à la réinstallation (docs/deployment.md).
+readonly LEGACY_SERVER="alisa.netmonitoring.be:5443"
 
 info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*" >&2; }
@@ -43,9 +48,9 @@ die()  { printf '\033[1;31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
 
 usage() {
     if [[ -f "${BASH_SOURCE[0]:-}" ]]; then
-        sed -n '3,34p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+        sed -n '3,36p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     else
-        echo "Usage : install.sh proxy|agent [options] — voir https://github.com/cganiddle/alisa-releases"
+        echo "Usage : install.sh proxy|agent [options] — voir https://github.com/net-system-srl/alisa-releases"
     fi
     exit "${1:-0}"
 }
@@ -56,11 +61,11 @@ COMPONENT="$1"; shift
 [[ "$COMPONENT" == "proxy" || "$COMPONENT" == "agent" ]] || usage 1
 
 VERSION="latest" SERVER="$DEFAULT_SERVER" LISTEN=":5100" CA_FILE="" PROXY_CA_FILE=""
-PROXY_TLS=false FORCE_CONFIG=false
+PROXY_TLS=false FORCE_CONFIG=false SERVER_GIVEN=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version) VERSION="${2:?}"; shift 2 ;;
-        --server) SERVER="${2:?}"; shift 2 ;;
+        --server) SERVER="${2:?}"; SERVER_GIVEN=true; shift 2 ;;
         --listen) LISTEN="${2:?}"; shift 2 ;;
         --ca-file) CA_FILE="${2:?}"; shift 2 ;;
         --proxy-tls) PROXY_TLS=true; shift ;;
@@ -172,9 +177,30 @@ log_level: info
 EOF
 }
 
+# Valeur de server_address dans une configuration existante (sans guillemets).
+current_server_address() {
+    sed -n "s/^server_address:[[:space:]]*['\"]\{0,1\}\([^'\"[:space:]#]*\).*/\1/p" "$1" | head -n 1
+}
+
+# Une configuration existante est conservée, sauf son server_address quand l'adresse
+# demandée explicitement (--server) diffère, ou quand elle vaut encore l'ancienne adresse :
+# sans cela, relancer la commande d'installation garderait alisa.netmonitoring.be.
+update_server_address() {
+    local current
+    current="$(current_server_address "$CONFIG_PATH")"
+    [[ -n "$current" && "$current" != "$SERVER" ]] || return 0
+    $SERVER_GIVEN || [[ "$current" == "$LEGACY_SERVER" ]] || return 0
+    info "server_address mis à jour : ${current} → ${SERVER}"
+    awk -v line="server_address: $(yaml_quote "$SERVER")" \
+        '!done && /^server_address:/ { print line; done = 1; next } { print }' \
+        "$CONFIG_PATH" > "$TMP/config.yaml"
+    install -m 600 "$TMP/config.yaml" "$CONFIG_PATH"
+}
+
 install -d -m 755 "$CONFIG_DIR"
 if [[ -f "$CONFIG_PATH" ]] && ! $FORCE_CONFIG; then
     info "Configuration existante conservée : $CONFIG_PATH"
+    update_server_address
 else
     info "Écriture de la configuration : $CONFIG_PATH"
     ( umask 077; "write_${COMPONENT}_config" > "$TMP/config.yaml" )

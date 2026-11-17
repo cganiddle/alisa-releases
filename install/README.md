@@ -15,7 +15,7 @@ Principe (voir [ADR 0002](../../docs/adr/0002-enrolement-et-mise-a-jour.md)) :
    la politique choisie dans l'interface (*Mises à jour*).
 
 Les scripts téléchargent la version demandée (la dernière par défaut) depuis les
-[releases GitHub](https://github.com/cganiddle/alisa-releases/releases), **vérifient son empreinte
+[releases GitHub](https://github.com/net-system-srl/alisa-releases/releases), **vérifient son empreinte
 SHA-256**, écrivent la configuration, installent le service système (relance automatique en
 cas d'échec) et le démarrent.
 
@@ -24,13 +24,13 @@ cas d'échec) et le démarrent.
 Linux (systemd), en root :
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.sh | sudo bash -s -- proxy
+curl -fsSL https://raw.githubusercontent.com/net-system-srl/alisa-releases/main/install/install.sh | sudo bash -s -- proxy
 ```
 
 Windows (PowerShell **administrateur**) :
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.ps1))) -Component proxy
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/net-system-srl/alisa-releases/main/install/install.ps1))) -Component proxy
 ```
 
 Le proxy écoute par défaut sur **toutes les interfaces, port 5100** : ouvrez ce port (TCP)
@@ -48,20 +48,20 @@ ports choisis. Le service tourne en root (Linux, macOS) ou SYSTEM (Windows) et p
 Linux et macOS, en root :
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.sh | sudo bash -s -- agent
+curl -fsSL https://raw.githubusercontent.com/net-system-srl/alisa-releases/main/install/install.sh | sudo bash -s -- agent
 ```
 
 Windows (PowerShell **administrateur**) :
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.ps1))) -Component agent
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/net-system-srl/alisa-releases/main/install/install.ps1))) -Component agent
 ```
 
 Depuis `cmd.exe` (console par défaut de Server Core et Hyper-V Server ; l'erreur « & était
 inattendu » signale qu'on est dans cmd) :
 
 ```bat
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.ps1))) -Component agent"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/net-system-srl/alisa-releases/main/install/install.ps1))) -Component agent"
 ```
 
 Sur un hôte **Hyper-V**, l'agent standard suffit : ajoutez ensuite un check « Hyper-V » pour
@@ -105,7 +105,8 @@ interne ou serveur de test.
 
 - **Mise à jour** : automatique (politique réglée dans l'interface, *Mises à jour*). Relancer
   la commande d'installation force la dernière version tout en conservant configuration et
-  identité.
+  identité. Seul `server_address` est réécrit, s'il diffère de `--server`/`-Server` passé
+  explicitement ou s'il vaut encore l'ancienne adresse `alisa.netmonitoring.be:5443`.
 - **Désinstaller** : `sudo alisa-agent stop && sudo alisa-agent uninstall` (idem `alisa-proxy`),
   puis supprimer le binaire, la configuration et l'état (voir ci-dessous). Supprimer l'état
   donne au nœud une **nouvelle identité** : il faudra l'approuver/l'associer de nouveau.

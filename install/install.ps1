@@ -5,10 +5,10 @@
  À lancer dans PowerShell **en administrateur** :
 
    Agent :
-     & ([scriptblock]::Create((irm https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.ps1))) -Component agent
+     & ([scriptblock]::Create((irm https://raw.githubusercontent.com/net-system-srl/alisa-releases/main/install/install.ps1))) -Component agent
 
    Proxy :
-     & ([scriptblock]::Create((irm https://raw.githubusercontent.com/cganiddle/alisa-releases/main/install/install.ps1))) -Component proxy
+     & ([scriptblock]::Create((irm https://raw.githubusercontent.com/net-system-srl/alisa-releases/main/install/install.ps1))) -Component proxy
 
  Aucun secret à fournir : le nœud s'annonce au serveur central et affiche un code
  de vérification. Approuvez-le (proxy) ou associez-le à un proxy (agent) dans
@@ -37,8 +37,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# -Server passé explicitement (Update-ServerAddress).
+$ServerGiven = $PSBoundParameters.ContainsKey('Server')
 Set-StrictMode -Version Latest
-$Repo = 'cganiddle/alisa-releases'
+$Repo = 'net-system-srl/alisa-releases'
 
 function Info([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
 
@@ -57,6 +59,30 @@ function Invoke-Alisa([string[]]$Arguments) {
 
 # Valeurs entre guillemets simples YAML (une apostrophe est doublée).
 function Quote([string]$Value) { "'" + $Value.Replace("'", "''") + "'" }
+
+# Ancienne adresse du serveur central (avant le passage à alisa.re, docs/deployment.md).
+$LegacyServer = 'alisa.netmonitoring.be:5443'
+
+# Une configuration existante est conservée, sauf son server_address quand l'adresse
+# demandée explicitement (-Server) diffère, ou quand elle vaut encore l'ancienne adresse :
+# sans cela, relancer la commande d'installation garderait alisa.netmonitoring.be.
+function Update-ServerAddress {
+    # -Encoding UTF8 : Windows PowerShell 5.1 lirait sinon le fichier (sans BOM) en ANSI.
+    $lines = @(Get-Content -LiteralPath $configPath -Encoding UTF8)
+    $index = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^server_address:') { $index = $i; break }
+    }
+    if ($index -lt 0) { return }
+    if ($lines[$index] -notmatch '^server_address:\s*[''"]?([^''"\s#]+)') { return }
+    $current = $Matches[1]
+    if ($current -eq $Server) { return }
+    if (-not $ServerGiven -and $current -ne $LegacyServer) { return }
+    Info "server_address mis à jour : $current → $Server"
+    $lines[$index] = "server_address: $(Quote $Server)"
+    # UTF-8 sans BOM, comme à la première écriture ; les droits du dossier sont hérités.
+    [System.IO.File]::WriteAllLines($configPath, [string[]]$lines, (New-Object System.Text.UTF8Encoding $false))
+}
 
 # --- Prérequis ------------------------------------------------------------------
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -108,6 +134,7 @@ try {
     # --- Configuration (aucun secret) ----------------------------------------------------
     if ((Test-Path $configPath) -and -not $ForceConfig) {
         Info "Configuration existante conservée : $configPath"
+        Update-ServerAddress
     }
     else {
         $date = Get-Date -Format 'yyyy-MM-dd HH:mm'
