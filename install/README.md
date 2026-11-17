@@ -107,9 +107,91 @@ interne ou serveur de test.
   la commande d'installation force la dernière version tout en conservant configuration et
   identité. Seul `server_address` est réécrit, s'il diffère de `--server`/`-Server` passé
   explicitement ou s'il vaut encore l'ancienne adresse `alisa.netmonitoring.be:5443`.
-- **Désinstaller** : `sudo alisa-agent stop && sudo alisa-agent uninstall` (idem `alisa-proxy`),
-  puis supprimer le binaire, la configuration et l'état (voir ci-dessous). Supprimer l'état
-  donne au nœud une **nouvelle identité** : il faudra l'approuver/l'associer de nouveau.
+- **Désinstaller** : voir [Désinstaller un agent ou un proxy](#désinstaller-un-agent-ou-un-proxy).
+
+## Désinstaller un agent ou un proxy
+
+Aucun script ne s'en charge : on retire le service, puis les fichiers, puis le nœud dans
+l'interface. **Dans cet ordre** : un hôte ou un proxy supprimé dans l'interface alors que son
+service tourne encore se ré-annonce aussitôt (il réapparaît « en attente »).
+
+Supprimer l'identité (`state.json`, dossier `state`) est définitif : une réinstallation sur la
+même machine crée un **nouveau nœud**, à approuver ou associer de nouveau. Pour une simple
+réinstallation, relancez plutôt la commande d'installation (identité conservée).
+
+### Agent
+
+**Avant** (facultatif) : si la prise en main à distance est activée sur l'hôte, désactivez-la
+dans l'interface et attendez une minute : l'agent désinstalle alors le client RustDesk qu'il a
+lui-même installé ([docs/remote-control.md](../../docs/remote-control.md)). Une fois l'agent
+supprimé, plus rien ne le fera.
+
+Linux (systemd), en root :
+
+```bash
+sudo alisa-agent stop && sudo alisa-agent uninstall      # arrête et retire le service
+sudo rm -f /usr/local/bin/alisa-agent /usr/local/bin/alisa-agent.old /usr/local/bin/alisa-agent.failed
+sudo rm -f /etc/alisa/agent.yaml
+sudo rmdir /etc/alisa 2>/dev/null || true                 # vide seulement si aucun proxy sur la machine
+sudo rm -rf /var/lib/alisa-agent                          # identité du nœud et tampon
+```
+
+macOS, en root :
+
+```bash
+sudo alisa-agent stop && sudo alisa-agent uninstall      # retire le LaunchDaemon
+sudo rm -f /usr/local/bin/alisa-agent /usr/local/bin/alisa-agent.old /usr/local/bin/alisa-agent.failed
+sudo rm -rf "/Library/Application Support/Alisa"          # configuration et identité
+```
+
+Windows (PowerShell **administrateur**) :
+
+```powershell
+& 'C:\Program Files\Alisa\alisa-agent.exe' stop
+& 'C:\Program Files\Alisa\alisa-agent.exe' uninstall
+Remove-Item 'C:\Program Files\Alisa\alisa-agent.exe*' -Force          # binaire, .old, .failed
+Remove-Item 'C:\ProgramData\Alisa\agent.yaml', 'C:\ProgramData\Alisa\agent.log*', 'C:\ProgramData\Alisa\state' -Recurse -Force -ErrorAction SilentlyContinue
+# Si aucun proxy n'est installé sur la machine, les dossiers vides peuvent partir aussi :
+Remove-Item 'C:\Program Files\Alisa', 'C:\ProgramData\Alisa' -ErrorAction SilentlyContinue
+```
+
+Puis, dans l'interface : **Hôtes → l'hôte → Supprimer** (rôle operator). L'historique de
+l'hôte disparaît avec lui ; pour le garder, laissez plutôt l'hôte en place et coupez ses
+notifications (*Couper les notifications*). Sans cette étape, l'hôte reste listé et passe en
+alerte « Hôte injoignable ».
+
+### Proxy
+
+**Avant** : les agents rattachés à ce proxy perdront leur collecte. Réattribuez-les d'abord à un
+autre proxy (fiche de l'hôte → *Réattribuer*) si vous voulez qu'ils restent supervisés. Les données que le
+proxy a encore en tampon (`spool`) et qu'il n'a pas pu transmettre seront perdues : vérifiez
+dans l'interface qu'il est en ligne et à jour avant de le retirer.
+
+Linux (systemd), en root :
+
+```bash
+sudo alisa-proxy stop && sudo alisa-proxy uninstall
+sudo rm -f /usr/local/bin/alisa-proxy /usr/local/bin/alisa-proxy.old /usr/local/bin/alisa-proxy.failed
+sudo rm -f /etc/alisa/proxy.yaml
+sudo rmdir /etc/alisa 2>/dev/null || true                 # vide seulement si aucun agent sur la machine
+sudo rm -rf /var/lib/alisa-proxy                          # identité, cache et tampon
+```
+
+Windows (PowerShell **administrateur**) :
+
+```powershell
+& 'C:\Program Files\Alisa\alisa-proxy.exe' stop
+& 'C:\Program Files\Alisa\alisa-proxy.exe' uninstall
+Remove-Item 'C:\Program Files\Alisa\alisa-proxy.exe*' -Force
+Remove-Item 'C:\ProgramData\Alisa\proxy.yaml', 'C:\ProgramData\Alisa\proxy-cache' -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item 'C:\Program Files\Alisa', 'C:\ProgramData\Alisa' -ErrorAction SilentlyContinue   # si aucun agent sur la machine
+```
+
+Pensez aussi à refermer dans le pare-feu les ports ouverts pour lui (TCP 5100 par défaut, et
+UDP 162 / UDP-TCP 514 si les traps SNMP ou le syslog étaient activés).
+
+Puis, dans l'interface : **Proxies → le proxy → Supprimer** (rôle admin). Ses agents perdent
+leur proxy et repassent en attente d'association ; leur historique est conservé.
 
 ## Emplacements
 
