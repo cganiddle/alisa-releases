@@ -57,6 +57,40 @@ function Invoke-Alisa([string[]]$Arguments) {
     finally { $ErrorActionPreference = $previous }
 }
 
+# Processus encore en cours sur le binaire installé (service en cours d'arrêt, relance
+# automatique, lancement manuel « run »…). Tant qu'il en reste un, Windows refuse d'écraser
+# l'exécutable (« section mappée utilisateur ouverte »).
+function Get-AlisaProcess {
+    Get-Process -Name $binName -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -and ($_.Path -ieq $binPath) }
+}
+
+# « stop » rend la main avant la fin du processus : on attend jusqu'à 30 s, puis on le force.
+function Wait-AlisaExit {
+    for ($i = 0; $i -lt 30 -and (Get-AlisaProcess); $i++) { Start-Sleep -Seconds 1 }
+    $left = @(Get-AlisaProcess)
+    if ($left.Count -gt 0) {
+        Info "Arrêt forcé de $binName (PID $($left.Id -join ', '))"
+        $left | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+    }
+}
+
+# Copie du nouveau binaire. Si l'ancien est encore chargé (le service a pu être relancé
+# entre-temps par la récupération automatique), Windows permet de le renommer : il part en
+# .old et le nouveau prend sa place ; l'ancien disparaît au prochain redémarrage du service.
+function Install-Binary([string]$Source) {
+    try {
+        Copy-Item -Force $Source $binPath -ErrorAction Stop
+    }
+    catch [System.IO.IOException] {
+        Info "Binaire encore utilisé : l'ancien est renommé en $binName.exe.old"
+        Remove-Item -Force -ErrorAction SilentlyContinue "$binPath.old"
+        Move-Item -Force $binPath "$binPath.old" -ErrorAction Stop
+        Copy-Item -Force $Source $binPath -ErrorAction Stop
+    }
+}
+
 # Valeurs entre guillemets simples YAML (une apostrophe est doublée).
 function Quote([string]$Value) { "'" + $Value.Replace("'", "''") + "'" }
 
@@ -177,8 +211,9 @@ log_level: info
     if (Test-Path $binPath) {
         Info 'Arrêt du service existant'
         Invoke-Alisa @('stop') | Out-Null
+        Wait-AlisaExit
     }
-    Copy-Item -Force (Join-Path $tmp $asset) $binPath
+    Install-Binary (Join-Path $tmp $asset)
     Remove-Item -Force -ErrorAction SilentlyContinue "$binPath.old", "$binPath.failed"
     Info ("Installé : " + (& $binPath version))
 
